@@ -34,6 +34,8 @@ const byte DNS_PORT = 53;
 // IPAddress apIP(192, 168, 14, 204);
 DNSServer dnsServer;
 
+uint16_t days[7];
+
 uint16_t button1;
 uint16_t switchOne;
 uint16_t status;
@@ -51,12 +53,10 @@ String wifis[20];
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
 
-Alarm alarm;
+Alarm alarm(0);
 
-SoftwareSerial dfserial(D6,D7);
+SoftwareSerial dfserial(D6, D7);
 DFRobotDFPlayerMini dfplayer;
-
-// Logger OttoLog("Otto");
 
 void timeChanged(Control *sender, int value)
 {
@@ -66,12 +66,22 @@ void timeChanged(Control *sender, int value)
     int hours = (sender->value[0] - '0') * 10 + sender->value[1] - '0';
     int minutes = (sender->value[3] - '0') * 10 + sender->value[4] - '0';
     alarm.set_time(hours, minutes);
-    alarm.set_invoked(false);
+}
+
+void daysChanged(Control *sender, int value)
+{
+    uint8_t myDays = 0;
+    for (int i = 0; i < 7; i++)
+    {
+        bitWrite(myDays, i, ESPUI.getControl(days[i])->value == "1");
+    }
+    Serial.print("days: ");
+    Serial.println(myDays, BIN);
+    alarm.set_state(myDays);
 }
 
 void alarmStateChanged(Control *sender, int value)
 {
-    alarm.set_invoked(false);
     switch (value)
     {
     case S_ACTIVE:
@@ -293,12 +303,11 @@ void savewifi(Control *sender, int value)
 
 void Program::setup(LoggerFactory &myfactory)
 {
-    pinMode(D1,INPUT);
+    pinMode(D1, INPUT);
     _factory = myfactory;
 
-    alarm = Alarm::init_from_eeprom();
+    alarm = Alarm::init_from_eeprom(0);
     alarm.set_active(true);
-    // OttoLog.Iniciialize(_factory);
     dnsServer.start(DNS_PORT, "*", WiFi.status() == WL_DISCONNECTED ? WiFi.softAPIP() : WiFi.localIP());
     Serial.println("\n\nWiFi parameters:");
     Serial.print("Mode: ");
@@ -354,6 +363,29 @@ void Program::setup(LoggerFactory &myfactory)
     wifipass = ESPUI.addControl(ControlType::Text, "Password", "", ControlColor::Emerald, wifipanel, &textCall);
     ESPUI.addControl(ControlType::Button, "Save", "Save", ControlColor::Wetasphalt, wifipanel, &savewifi);
 
+    auto groupswitcher = ESPUI.addControl(Switcher, "Aktivni ve dnech", "0", Dark, tab1, &daysChanged);
+    days[1] = groupswitcher;
+    days[2] = ESPUI.addControl(Switcher, "", "0", Sunflower, groupswitcher, &daysChanged);
+    days[3] = ESPUI.addControl(Switcher, "", "0", Sunflower, groupswitcher, &daysChanged);
+    days[4] = ESPUI.addControl(Switcher, "", "0", Sunflower, groupswitcher, &daysChanged);
+    days[5] = ESPUI.addControl(Switcher, "", "0", Sunflower, groupswitcher, &daysChanged);
+    days[6] = ESPUI.addControl(Switcher, "", "0", Sunflower, groupswitcher, &daysChanged);
+    days[0] = ESPUI.addControl(Switcher, "", "0", Sunflower, groupswitcher, &daysChanged);
+
+    String clearLabelStyle = "background-color: unset; width: 100%;";
+
+    // This label does nothing apart from put the next 4 onto the next line
+    ESPUI.setElementStyle(ESPUI.addControl(Label, "", "", None, groupswitcher), clearLabelStyle);
+    // They are set to the same width as a switcher so appear below them
+    String labelStyle = "width: 60px; margin-left: .3rem; margin-right: .3rem; background-color: unset;";
+    ESPUI.setElementStyle(ESPUI.addControl(Label, "", "Po", None, groupswitcher), labelStyle);
+    ESPUI.setElementStyle(ESPUI.addControl(Label, "", "Ut", None, groupswitcher), labelStyle);
+    ESPUI.setElementStyle(ESPUI.addControl(Label, "", "St", None, groupswitcher), labelStyle);
+    ESPUI.setElementStyle(ESPUI.addControl(Label, "", "Ct", None, groupswitcher), labelStyle);
+    ESPUI.setElementStyle(ESPUI.addControl(Label, "", "Pa", None, groupswitcher), labelStyle);
+    ESPUI.setElementStyle(ESPUI.addControl(Label, "", "So", None, groupswitcher), labelStyle);
+    ESPUI.setElementStyle(ESPUI.addControl(Label, "", "Ne", None, groupswitcher), labelStyle);
+
     FastLED.addLeds<WS2812B, ARGB, RGB>(leds, 9);
 
     // OttoLog.Info("Homed");
@@ -378,14 +410,14 @@ void Program::setup(LoggerFactory &myfactory)
     if (WiFi.status() == WL_CONNECTED)
         timeClient.begin();
     dfserial.begin(9600);
-    if (!dfplayer.begin(dfserial)) {  //Use softwareSerial to communicate with mp3.
-    Serial.println(F("Unable to begin:"));
-    Serial.println(F("1.Please recheck the connection!"));
-    Serial.println(F("2.Please insert the SD card!"));
+    if (!dfplayer.begin(dfserial))
+    { // Use softwareSerial to communicate with mp3.
+        Serial.println(F("Unable to begin:"));
+        Serial.println(F("1.Please recheck the connection!"));
+        Serial.println(F("2.Please insert the SD card!"));
     }
     dfplayer.volume(5);
     // TODO: handle error
-
 }
 
 void Program::loop(void)
@@ -394,16 +426,17 @@ void Program::loop(void)
     {
         timeClient.update();
         unsigned long time = timeClient.getEpochTime();
-        if (alarm.should_ring(timeClient.getHours(), timeClient.getMinutes(), time))
+        if (alarm.should_ring(time))
         {
             Serial.println("ty vole, ono to funguje");
-            alarm.ring(time, timeClient.getSeconds());
+            alarm.ring(time);
             dfplayer.play(1);
         }
     }
     dnsServer.processNextRequest();
-    if(digitalRead(D1)){
+    if (digitalRead(D1))
+    {
         dfplayer.stop();
     }
-    //delay(20);
+    // delay(20);
 }
