@@ -11,6 +11,9 @@
 #include <Logging/LoggerFactory.h>
 #include <Logging/Logger.h>
 #include <EEPROM.h>
+
+#define EEPROM_SIZE sizeof(byte) * 1024
+
 //#include "WiFiManager.h"
 const char* ssid = "OTA1";
 const char* password = "nsvbnc170";
@@ -61,12 +64,12 @@ bool initWiFi(int eeprom_addrs, int timeout){
   return true;
 }
 void setup() {
-  EEPROM.begin(sizeof(int)*6+sizeof(char)*40);
+  EEPROM.begin(EEPROM_SIZE);
   factory.Begin();
   OTAlogger.Iniciialize(factory);
   Serial.begin(115200);
   //factory.Info("Main","Booting");
-  bool sta = initWiFi(sizeof(int)*6,5000);
+  bool sta = initWiFi(0,5000);
 
 
 

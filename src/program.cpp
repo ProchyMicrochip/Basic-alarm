@@ -17,6 +17,9 @@
 #include <SoftwareSerial.h>
 #include <DFRobotDFPlayerMini.h>
 
+#define FIRST_ALARM_ADDR sizeof(char) * 40
+#define EEPROM_SIZE sizeof(byte) * 1024
+
 CRGB leds[9];
 
 class Program
@@ -35,6 +38,7 @@ const byte DNS_PORT = 53;
 DNSServer dnsServer;
 
 uint16_t days[7];
+uint16_t alarms_select;
 
 uint16_t button1;
 uint16_t switchOne;
@@ -53,10 +57,14 @@ String wifis[20];
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
 
-Alarm alarm(0);
+Alarm selected_alarm("1");
 
 SoftwareSerial dfserial(D6, D7);
 DFRobotDFPlayerMini dfplayer;
+
+std::vector<Alarm> alarms;
+std::vector<std::tuple<uint16_t, int>> option_ids;
+int max_new_alarms_count = 5;
 
 void timeChanged(Control *sender, int value)
 {
@@ -65,7 +73,7 @@ void timeChanged(Control *sender, int value)
 
     int hours = (sender->value[0] - '0') * 10 + sender->value[1] - '0';
     int minutes = (sender->value[3] - '0') * 10 + sender->value[4] - '0';
-    alarm.set_time(hours, minutes);
+    selected_alarm.set_time(hours, minutes);
 }
 
 void daysChanged(Control *sender, int value)
@@ -77,7 +85,7 @@ void daysChanged(Control *sender, int value)
     }
     Serial.print("days: ");
     Serial.println(myDays, BIN);
-    alarm.set_state(myDays);
+    selected_alarm.set_state(myDays);
 }
 
 void alarmStateChanged(Control *sender, int value)
@@ -86,12 +94,12 @@ void alarmStateChanged(Control *sender, int value)
     {
     case S_ACTIVE:
         Serial.print("Active:");
-        alarm.set_active(true);
+        selected_alarm.set_active(true);
         break;
 
     case S_INACTIVE:
         Serial.print("Inactive");
-        alarm.set_active(false);
+        selected_alarm.set_active(false);
         break;
     }
 }
@@ -158,45 +166,32 @@ void padExample(Control *sender, int value)
     switch (value)
     {
     case P_LEFT_DOWN:
-
         Serial.print("left down");
         break;
-
     case P_LEFT_UP:
         Serial.print("left up");
         break;
-
     case P_RIGHT_DOWN:
-
         Serial.print("right down");
         break;
-
     case P_RIGHT_UP:
         Serial.print("right up");
         break;
-
     case P_FOR_DOWN:
-
         Serial.print("for down");
         break;
-
     case P_FOR_UP:
         Serial.print("for up");
         break;
-
     case P_BACK_DOWN:
-
         Serial.print("back down");
         break;
-
     case P_BACK_UP:
         Serial.print("back up");
         break;
-
     case P_CENTER_DOWN:
         Serial.print("center down");
         break;
-
     case P_CENTER_UP:
         Serial.print("center up");
         break;
@@ -294,11 +289,80 @@ void savewifi(Control *sender, int value)
     Serial.println(ESPUI.getControl(wifipass)->value);
     if (value == B_UP)
     {
-        if (saveEEPROMWifi(sizeof(int) * 6, ESPUI.getControl(wifissid)->value, ESPUI.getControl(wifipass)->value))
+        if (saveEEPROMWifi(0, ESPUI.getControl(wifissid)->value, ESPUI.getControl(wifipass)->value))
             ESP.restart();
         Serial.println("Wifi saved to EEPROM");
         Serial.println(sender->id);
     }
+}
+
+void restoreDataFromEEPROM(int address)
+{
+    while (address < EEPROM_SIZE - ALARM_SIZE)
+    {
+        // tudu : load settings
+        if (Alarm::is_alarm(address))
+        {
+            alarms.push_back(Alarm::init_from_eeprom(address, String(alarms.size() + 1)));
+            address += ALARM_SIZE;
+        }
+        else
+            address++;
+    }
+}
+
+void selectedAlarmChanged(Control *sender, int value)
+{
+    for (auto &alarm : alarms)
+    {
+        if (alarm.name == sender->value)
+        {
+            selected_alarm = alarm;
+            Serial.printf(selected_alarm.name.c_str());
+        }
+    }
+}
+
+void createAlarm(Control *sender, int value)
+{
+    max_new_alarms_count--;
+    if (value == B_DOWN && max_new_alarms_count == 0)
+    {
+        return;
+    }
+
+    // grap data from controls
+    int address = FIRST_ALARM_ADDR;
+    while (address < EEPROM_SIZE - ALARM_SIZE)
+    {
+        if (Alarm::is_alarm(address))
+            address += ALARM_SIZE;
+        else
+            break;
+    }
+
+    Alarm a(address, std::get<0>(option_ids[option_ids.size() - max_new_alarms_count - 1]));
+    alarms.push_back(a);
+    ESPUI.updateVisibility(std::get<0>(option_ids[alarms.size() - 1]), true);
+    std::get<1>(option_ids[alarms.size() - 1]) = address;
+}
+
+void removeAlarm(Control *sender, int value)
+{
+    int i = 0;
+    for (; i < alarms.size(); i++)
+        if (selected_alarm.getAddress() == alarms[i].getAddress())
+            break;
+
+    if (i == 0)
+        return;
+
+    for (int i = 0; i < ALARM_SIZE; i++)
+        EEPROM.write(selected_alarm.getAddress() + sizeof(byte) * i, 0);
+    EEPROM.commit();
+
+    ESPUI.updateVisibility(i - 1, true);
+    // rename all other alarms
 }
 
 void Program::setup(LoggerFactory &myfactory)
@@ -306,8 +370,17 @@ void Program::setup(LoggerFactory &myfactory)
     pinMode(D1, INPUT);
     _factory = myfactory;
 
-    alarm = Alarm::init_from_eeprom(0);
-    alarm.set_active(true);
+    restoreDataFromEEPROM(FIRST_ALARM_ADDR);
+
+    if (alarms.size() == 0)
+    {
+        selected_alarm = Alarm(FIRST_ALARM_ADDR, "1");
+        alarms.push_back(selected_alarm);
+    }
+    else
+    {
+        selected_alarm = alarms[0];
+    }
     dnsServer.start(DNS_PORT, "*", WiFi.status() == WL_DISCONNECTED ? WiFi.softAPIP() : WiFi.localIP());
     Serial.println("\n\nWiFi parameters:");
     Serial.print("Mode: ");
@@ -324,15 +397,31 @@ void Program::setup(LoggerFactory &myfactory)
 
     // Alarm
 
-    // uint16_t text_time = ESPUI.text("Time", &timeChanged, ControlColor::Dark, "13:00");
-    // ESPUI.setInputType(text_time, "time");
+    ESPUI.addControl(ControlType::Button, "Nový", "Vytvořit", ControlColor::Wetasphalt, tab1, &createAlarm);
 
-    // ESPUI.addControl(ControlType::Time, "Vyberte čas", "6:00", ControlColor::Carrot, tab1, &timeChanged);
+    // don't add alarms_select id to option_ids
+    alarms_select = ESPUI.addControl(ControlType::Select, "Vyberte budík", "", ControlColor::Alizarin, tab1, &selectedAlarmChanged);
+    for (size_t i = 0; i < alarms.size(); i++)
+    {
+        uint16_t id = ESPUI.addControl(ControlType::Option, alarms[i].name.c_str(), alarms[i].name.c_str(), ControlColor::Alizarin, alarms_select, &selectedAlarmChanged);
+        option_ids.push_back(std::make_tuple(id, alarms[i].getAddress()));
+        ESPUI.updateVisibility(id, false);
+    }
+
+    for (size_t i = 0; i < 5; i++)
+    {
+        uint16_t id = ESPUI.addControl(ControlType::Option, String(alarms.size() + 1).c_str(), String(alarms.size() + 1).c_str(), ControlColor::Alizarin, alarms_select, &selectedAlarmChanged);
+        option_ids.push_back(std::make_tuple(id, -1));
+        ESPUI.updateVisibility(id, false);
+    }
+
     uint16_t text_time = ESPUI.addControl(ControlType::Text, "Vyberte čas", "06:00", ControlColor::Wetasphalt, tab1, &timeChanged);
     ESPUI.setInputType(text_time, "time");
 
     // switchOne = ESPUI.switcher("Aktivní?", &switchExample, ControlColor::Alizarin);
     switchOne = ESPUI.addControl(ControlType::Switcher, "Aktivní?", "1", ControlColor::Alizarin, tab1, &alarmStateChanged);
+
+    ESPUI.addControl(ControlType::Button, "Odstranit vybraný", "Odstranit", ControlColor::Wetasphalt, tab1, &removeAlarm);
 
     // End Alarm
 
@@ -388,7 +477,6 @@ void Program::setup(LoggerFactory &myfactory)
 
     FastLED.addLeds<WS2812B, ARGB, RGB>(leds, 9);
 
-    // OttoLog.Info("Homed");
     for (int whiteLed = 0; whiteLed < 14; whiteLed = whiteLed + 1)
     {
         // Turn our current led on to white, then show the leds
@@ -426,11 +514,15 @@ void Program::loop(void)
     {
         timeClient.update();
         unsigned long time = timeClient.getEpochTime();
-        if (alarm.should_ring(time))
+        for (auto &alarm : alarms)
         {
-            Serial.println("ty vole, ono to funguje");
-            alarm.ring(time);
-            dfplayer.play(1);
+            if (alarm.should_ring(time))
+            {
+                Serial.println("ty vole, ono to funguje");
+                Serial.println(alarm.name);
+                alarm.ring(time);
+                dfplayer.play(1);
+            }
         }
     }
     dnsServer.processNextRequest();
@@ -438,5 +530,5 @@ void Program::loop(void)
     {
         dfplayer.stop();
     }
-    // delay(20);
+    delay(20);
 }
