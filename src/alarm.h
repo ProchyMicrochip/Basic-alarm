@@ -25,26 +25,27 @@ private:
     uint8_t m_state = 0;
     unsigned long m_last_invoke = 0;
 
-    void save();
-
 public:
     String name;
     uint16_t start_time = 0;
     Alarm();
-    Alarm(String name);
+    explicit Alarm(String name);
     Alarm(int address, String name);
-    int getAddress();
+    int get_address();
+    bool get_active();
+    bool get_day(int day);
     void set_active(bool active);
     void set_time(uint8_t hour, uint8_t minute);
     void set_state(uint8_t state);
     bool should_ring(unsigned long time);
     // We could inject a DFRobotDFPlayerMini into this class and create a function to start and stop alarm
     void ring(unsigned long time);
-    void save(int address);
+    void save() const;
+    void save(int address) const;
 
     static Alarm* init_from_eeprom(int address, String name)
     {
-        Alarm* alarm = new Alarm(address, name);
+        auto* alarm = new Alarm(address, std::move(name));
 
         alarm->start_time = EEPROM.read(address + sizeof(uint8_t));
         alarm->m_state = EEPROM.read(address + sizeof(uint8_t) + sizeof(uint16_t));

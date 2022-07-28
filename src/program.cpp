@@ -8,7 +8,9 @@
 #if defined(ESP32)
 #include <WiFi.h>
 #else
+
 #include <ESP8266WiFi.h>
+
 #endif
 
 #include <NTPClient.h>
@@ -18,19 +20,19 @@
 #include <DFRobotDFPlayerMini.h>
 
 #define EEPROM_SIZE sizeof(byte) * 1024
+#define ALARMS_COUNT 3
 
 CRGB leds[9];
 
-class Program
-{
+class Program {
 private:
     // Otto MyOtto;  //This is Otto!
 public:
     void setup(LoggerFactory &myfactory);
+
     void loop(void);
 };
 
-LoggerFactory _factory;
 uint16_t console;
 const byte DNS_PORT = 53;
 // IPAddress apIP(192, 168, 14, 204);
@@ -62,12 +64,9 @@ Alarm *selected_alarm;
 SoftwareSerial dfserial(D6, D7);
 DFRobotDFPlayerMini dfplayer;
 
-Alarm *alarms[3];
-std::vector<std::tuple<uint16_t, int>> option_ids;
-int max_new_alarms_count = 5;
+Alarm *alarms[ALARMS_COUNT];
 
-void timeChanged(Control *sender, int value)
-{
+void timeChanged(Control *sender, int value) {
     Serial.print("Alarm time changed to :");
     Serial.println(sender->value);
 
@@ -76,11 +75,9 @@ void timeChanged(Control *sender, int value)
     selected_alarm->set_time(hours, minutes);
 }
 
-void daysChanged(Control *sender, int value)
-{
+void daysChanged(Control *sender, int value) {
     uint8_t myDays = 0;
-    for (int i = 0; i < 7; i++)
-    {
+    for (int i = 0; i < 7; i++) {
         bitWrite(myDays, i, ESPUI.getControl(days[i])->value == "1");
     }
     Serial.print("days: ");
@@ -88,178 +85,158 @@ void daysChanged(Control *sender, int value)
     selected_alarm->set_state(myDays);
 }
 
-void alarmStateChanged(Control *sender, int value)
-{
-    switch (value)
-    {
-    case S_ACTIVE:
-        Serial.print("Active:");
-        selected_alarm->set_active(true);
-        break;
+void alarmStateChanged(Control *sender, int value) {
+    switch (value) {
+        case S_ACTIVE:
+            Serial.print("Active:");
+            selected_alarm->set_active(true);
+            break;
 
-    case S_INACTIVE:
-        Serial.print("Inactive");
-        selected_alarm->set_active(false);
-        break;
+        case S_INACTIVE:
+            Serial.print("Inactive");
+            selected_alarm->set_active(false);
+            break;
     }
 }
 
-void numberCall(Control *sender, int value)
-{
+void numberCall(Control *sender, int value) {
     Serial.println(sender->value);
 }
 
-void textCall(Control *sender, int value)
-{
+void textCall(Control *sender, int value) {
     Serial.print("Text: ID: ");
     Serial.print(sender->id);
     Serial.print(", Value: ");
     Serial.println(sender->value);
 }
 
-void slider(Control *sender, int value)
-{
+void slider(Control *sender, int value) {
     Serial.print("Slider: ID: ");
     Serial.print(sender->id);
     Serial.print(", Value: ");
     Serial.println(sender->value);
 }
 
-void buttonCallback(Control *sender, int value)
-{
-    switch (value)
-    {
-    case B_DOWN:
-        Serial.println("Button DOWN");
-        break;
+void buttonCallback(Control *sender, int value) {
+    switch (value) {
+        case B_DOWN:
+            Serial.println("Button DOWN");
+            break;
 
-    case B_UP:
-        Serial.println("Button UP");
-        break;
+        case B_UP:
+            Serial.println("Button UP");
+            break;
     }
 }
 
-void buttonExample(Control *sender, int value)
-{
-    switch (value)
-    {
-    case B_DOWN:
-        Serial.println("Status: Start");
-        ESPUI.updateControlValue(status, "Start");
+void buttonExample(Control *sender, int value) {
+    switch (value) {
+        case B_DOWN:
+            Serial.println("Status: Start");
+            ESPUI.updateControlValue(status, "Start");
 
-        ESPUI.getControl(button1)->color = ControlColor::Carrot;
-        ESPUI.updateControl(button1);
-        break;
+            ESPUI.getControl(button1)->color = ControlColor::Carrot;
+            ESPUI.updateControl(button1);
+            break;
 
-    case B_UP:
-        Serial.println("Status: Stop");
-        ESPUI.updateControlValue(status, "Stop");
+        case B_UP:
+            Serial.println("Status: Stop");
+            ESPUI.updateControlValue(status, "Stop");
 
-        ESPUI.getControl(button1)->color = ControlColor::Peterriver;
-        ESPUI.updateControl(button1);
-        break;
+            ESPUI.getControl(button1)->color = ControlColor::Peterriver;
+            ESPUI.updateControl(button1);
+            break;
     }
 }
 
-void padExample(Control *sender, int value)
-{
-    switch (value)
-    {
-    case P_LEFT_DOWN:
-        Serial.print("left down");
-        break;
-    case P_LEFT_UP:
-        Serial.print("left up");
-        break;
-    case P_RIGHT_DOWN:
-        Serial.print("right down");
-        break;
-    case P_RIGHT_UP:
-        Serial.print("right up");
-        break;
-    case P_FOR_DOWN:
-        Serial.print("for down");
-        break;
-    case P_FOR_UP:
-        Serial.print("for up");
-        break;
-    case P_BACK_DOWN:
-        Serial.print("back down");
-        break;
-    case P_BACK_UP:
-        Serial.print("back up");
-        break;
-    case P_CENTER_DOWN:
-        Serial.print("center down");
-        break;
-    case P_CENTER_UP:
-        Serial.print("center up");
-        break;
+void padExample(Control *sender, int value) {
+    switch (value) {
+        case P_LEFT_DOWN:
+            Serial.print("left down");
+            break;
+        case P_LEFT_UP:
+            Serial.print("left up");
+            break;
+        case P_RIGHT_DOWN:
+            Serial.print("right down");
+            break;
+        case P_RIGHT_UP:
+            Serial.print("right up");
+            break;
+        case P_FOR_DOWN:
+            Serial.print("for down");
+            break;
+        case P_FOR_UP:
+            Serial.print("for up");
+            break;
+        case P_BACK_DOWN:
+            Serial.print("back down");
+            break;
+        case P_BACK_UP:
+            Serial.print("back up");
+            break;
+        case P_CENTER_DOWN:
+            Serial.print("center down");
+            break;
+        case P_CENTER_UP:
+            Serial.print("center up");
+            break;
     }
 
     Serial.print(" ");
     Serial.println(sender->id);
 }
 
-void switchExample(Control *sender, int value)
-{
-    switch (value)
-    {
-    case S_ACTIVE:
-        Serial.print("Active:");
-        ESPUI.updateVisibility(tab2, true);
-        ESPUI.updateVisibility(tab3, true);
-        ESPUI.updateVisibility(status, true);
-        break;
+void switchExample(Control *sender, int value) {
+    switch (value) {
+        case S_ACTIVE:
+            Serial.print("Active:");
+            ESPUI.updateVisibility(tab2, true);
+            ESPUI.updateVisibility(tab3, true);
+            ESPUI.updateVisibility(status, true);
+            break;
 
-    case S_INACTIVE:
-        Serial.print("Inactive");
-        ESPUI.updateVisibility(tab2, false);
-        ESPUI.updateVisibility(tab3, false);
-        ESPUI.updateVisibility(status, false);
-        break;
+        case S_INACTIVE:
+            Serial.print("Inactive");
+            ESPUI.updateVisibility(tab2, false);
+            ESPUI.updateVisibility(tab3, false);
+            ESPUI.updateVisibility(status, false);
+            break;
     }
     Serial.print(" ");
     Serial.println(sender->id);
 }
 
-void selectExample(Control *sender, int value)
-{
+void selectExample(Control *sender, int value) {
     Serial.print("Select: ID: ");
     Serial.print(sender->id);
     Serial.print(", Value: ");
     Serial.println(sender->value);
 }
 
-void otherSwitchExample(Control *sender, int value)
-{
-    switch (value)
-    {
-    case S_ACTIVE:
-        Serial.print("Active:");
-        break;
+void otherSwitchExample(Control *sender, int value) {
+    switch (value) {
+        case S_ACTIVE:
+            Serial.print("Active:");
+            break;
 
-    case S_INACTIVE:
-        Serial.print("Inactive");
-        break;
+        case S_INACTIVE:
+            Serial.print("Inactive");
+            break;
     }
 
     Serial.print(" ");
     Serial.println(sender->id);
 }
 
-void trim(Control *sender, int value)
-{
+void trim(Control *sender, int value) {
 }
 
-void save(Control *sender, int value)
-{
+void save(Control *sender, int value) {
 }
 
-bool saveEEPROMWifi(int eeprom_addrs, String ssid, String pass)
-{
-    if (ssid.length() > 20 || pass.length() > 20 || ssid.length() == 0 || pass.length() == 0)
-    {
+bool saveEEPROMWifi(int eeprom_addrs, String ssid, String pass) {
+    if (ssid.length() > 20 || pass.length() > 20 || ssid.length() == 0 || pass.length() == 0) {
         Serial.println("Credentials invalid");
         return false;
     }
@@ -269,26 +246,21 @@ bool saveEEPROMWifi(int eeprom_addrs, String ssid, String pass)
     Serial.println(ssid);
     Serial.print("PASS: ");
     Serial.println(pass);
-    if (EEPROM.commit())
-    {
+    if (EEPROM.commit()) {
         Serial.println("Credencials saved succesfully");
         return true;
-    }
-    else
-    {
+    } else {
         Serial.print("Error when writing to EEPROM");
         return false;
     }
 }
 
-void savewifi(Control *sender, int value)
-{
+void savewifi(Control *sender, int value) {
     Serial.println(ESPUI.getControl(wifissid)->label);
     Serial.println(ESPUI.getControl(wifissid)->value);
     Serial.println(ESPUI.getControl(wifipass)->label);
     Serial.println(ESPUI.getControl(wifipass)->value);
-    if (value == B_UP)
-    {
+    if (value == B_UP) {
         if (saveEEPROMWifi(0, ESPUI.getControl(wifissid)->value, ESPUI.getControl(wifipass)->value))
             ESP.restart();
         Serial.println("Wifi saved to EEPROM");
@@ -296,62 +268,64 @@ void savewifi(Control *sender, int value)
     }
 }
 
-bool restoreDataFromEEPROM(int address)
-{
+bool restoreDataFromEEPROM(int address) {
     int counter = 0;
-    while (address < EEPROM_SIZE - ALARM_SIZE)
-    {
+    while (address < EEPROM_SIZE - ALARM_SIZE) {
         // tudu : load settings
-        if (Alarm::is_alarm(address))
-        {
+        if (Alarm::is_alarm(address)) {
             alarms[counter] = Alarm::init_from_eeprom(address, String(counter + 1));
             address += ALARM_SIZE;
             counter++;
-        }
-        else
+        } else
             address++;
     }
 
-    if (counter > 0)
+    if (counter == ALARMS_COUNT)
         return true;
     return false;
 }
 
-void selectedAlarmChanged(Control *sender, int value)
-{
-    for (auto &alarm : alarms)
-    {
-        if (alarm->name == sender->value)
-        {
+void updateControls() {
+    int hours = selected_alarm->start_time / 60;
+    int minutes = selected_alarm->start_time % 60;
+    char text[8];
+    sprintf(text, "%02d:%02d", hours, minutes);
+    ESPUI.updateText(text_time, text);
+    ESPUI.updateSwitcher(alarm_active_switcher, selected_alarm->get_active());
+
+    for (int i = 0; i < 7; ++i) {
+        ESPUI.updateSwitcher(days[i], selected_alarm->get_day(i));
+    }
+}
+
+void selectedAlarmChanged(Control *sender, int value) {
+    for (auto &alarm: alarms) {
+        if (alarm->name == sender->value) {
             selected_alarm = alarm;
-            Serial.printf(selected_alarm->name.c_str());
+            Serial.printf("%s", selected_alarm->name.c_str());
         }
     }
 
-    int hours = selected_alarm->start_time / 60;
-    int minutes = selected_alarm->start_time % 60;
-    char text[6];
-    sprintf(text, "%02d:%02d", hours, minutes); 
-    Serial.println(text);
-    ESPUI.updateText(text_time, text);
-    ESPUI.updateSwitcher(alarm_active_switcher, 0);
+    updateControls();
 }
 
-void Program::setup(LoggerFactory &myfactory)
-{
+void save_selected_alarm(Control *sender, int value) {
+    selected_alarm->save();
+}
+
+void Program::setup(LoggerFactory &myfactory) {
     pinMode(D1, INPUT);
-    _factory = myfactory;
 
     bool restored = restoreDataFromEEPROM(FIRST_ALARM_ADDR);
-
-    if (restored == false)
-    {
-        for (int i = 0; i < 3; i++)
-        {
+    Serial.println(restored);
+    if (!restored) {
+        for (int i = 0; i < ALARMS_COUNT; i++) {
             alarms[i] = new Alarm(String(i));
         }
     }
     selected_alarm = alarms[0];
+    Serial.print(alarms[0]->start_time);
+    Serial.print(alarms[1]->start_time);
     dnsServer.start(DNS_PORT, "*", WiFi.status() == WL_DISCONNECTED ? WiFi.softAPIP() : WiFi.localIP());
     Serial.println("\n\nWiFi parameters:");
     Serial.print("Mode: ");
@@ -368,46 +342,20 @@ void Program::setup(LoggerFactory &myfactory)
 
     // Alarm
 
-    alarms_select = ESPUI.addControl(ControlType::Select, "Vyberte budík", "", ControlColor::Alizarin, tab1, &selectedAlarmChanged);
-    for (size_t i = 0; i < 3; i++)
-    {
-        ESPUI.addControl(ControlType::Option, alarms[i]->name.c_str(), alarms[i]->name.c_str(), ControlColor::Alizarin, alarms_select, &selectedAlarmChanged);
+    alarms_select = ESPUI.addControl(ControlType::Select, "Vyberte budík", "", ControlColor::Alizarin, tab1,
+                                     &selectedAlarmChanged);
+    for (auto &alarm: alarms) {
+        ESPUI.addControl(ControlType::Option, alarm->name.c_str(), alarm->name.c_str(), ControlColor::Alizarin,
+                         alarms_select, &selectedAlarmChanged);
     }
 
-    text_time = ESPUI.addControl(ControlType::Text, "Vyberte čas", "06:00", ControlColor::Wetasphalt, tab1, &timeChanged);
+    text_time = ESPUI.addControl(ControlType::Text, "Vyberte čas", "06:00", ControlColor::Wetasphalt, tab1,
+                                 &timeChanged);
     ESPUI.setInputType(text_time, "time");
 
     // switchOne = ESPUI.switcher("Aktivní?", &switchExample, ControlColor::Alizarin);
-    alarm_active_switcher = ESPUI.addControl(ControlType::Switcher, "Aktivní?", "1", ControlColor::Alizarin, tab1, &alarmStateChanged);
-
-    // End Alarm
-
-    status = ESPUI.addControl(ControlType::Label, "Status:", "Stop", ControlColor::Turquoise);
-    // alarm_active_switcher = ESPUI.switcher("Switch one", &switchExample, ControlColor::Alizarin);
-    // TRIMS
-    ESPUI.addControl(ControlType::Pad, "Movement", "", ControlColor::Carrot, tab2, &padExample);
-    uint16_t panel = ESPUI.addControl(ControlType::Label, "TRIMS", "LEFT LEG", ControlColor::Wetasphalt, tab3);
-    slider1 = ESPUI.addControl(ControlType::Slider, "", "50", ControlColor::Wetasphalt, panel, &trim);
-    ESPUI.addControl(ControlType::Label, "RIGHT LEG", "RIGHT LEG", ControlColor::Wetasphalt, panel);
-    slider2 = ESPUI.addControl(ControlType::Slider, "", "50", ControlColor::Wetasphalt, panel, &trim);
-    ESPUI.addControl(ControlType::Label, "LEFT FOOT", "LEFT FOOT", ControlColor::Wetasphalt, panel);
-    slider3 = ESPUI.addControl(ControlType::Slider, "", "50", ControlColor::Wetasphalt, panel, &trim);
-    ESPUI.addControl(ControlType::Label, "RIGHT FOOT", "RIGHT FOOT", ControlColor::Wetasphalt, panel);
-    slider4 = ESPUI.addControl(ControlType::Slider, "", "50", ControlColor::Wetasphalt, panel, &trim);
-    ESPUI.addControl(ControlType::Button, "Save", "Save", ControlColor::Wetasphalt, panel, &save);
-    // WIFI
-    uint16_t wifipanel = ESPUI.addControl(ControlType::Label, "WiFi", "", ControlColor::Emerald, tab3);
-    wifissid = ESPUI.addControl(ControlType::Select, "ssid", "", ControlColor::Emerald, wifipanel, &selectExample);
-    int networks = WiFi.scanNetworks();
-    for (int i = 0; i < networks; i++)
-    {
-        wifis[i].reserve(20);
-        wifis[i] = WiFi.SSID(i);
-        const char *ssid = wifis[i].c_str();
-        ESPUI.addControl(ControlType::Option, ssid, ssid, ControlColor::Emerald, wifissid);
-    }
-    wifipass = ESPUI.addControl(ControlType::Text, "Password", "", ControlColor::Emerald, wifipanel, &textCall);
-    ESPUI.addControl(ControlType::Button, "Save", "Save", ControlColor::Wetasphalt, wifipanel, &savewifi);
+    alarm_active_switcher = ESPUI.addControl(ControlType::Switcher, "Aktivní?", "1", ControlColor::Alizarin, tab1,
+                                             &alarmStateChanged);
 
     auto groupswitcher = ESPUI.addControl(Switcher, "Aktivni ve dnech", "0", Dark, tab1, &daysChanged);
     days[1] = groupswitcher;
@@ -432,10 +380,42 @@ void Program::setup(LoggerFactory &myfactory)
     ESPUI.setElementStyle(ESPUI.addControl(Label, "", "So", None, groupswitcher), labelStyle);
     ESPUI.setElementStyle(ESPUI.addControl(Label, "", "Ne", None, groupswitcher), labelStyle);
 
+    ESPUI.addControl(ControlType::Button, "", "Uložit změny", ControlColor::Wetasphalt, tab1, &save_selected_alarm);
+
+    // End Alarm
+
+    // Load values for selected to ui
+    updateControls();
+
+    status = ESPUI.addControl(ControlType::Label, "Status:", "Stop", ControlColor::Turquoise);
+    // alarm_active_switcher = ESPUI.switcher("Switch one", &switchExample, ControlColor::Alizarin);
+    // TRIMS
+    ESPUI.addControl(ControlType::Pad, "Movement", "", ControlColor::Carrot, tab2, &padExample);
+    uint16_t panel = ESPUI.addControl(ControlType::Label, "TRIMS", "LEFT LEG", ControlColor::Wetasphalt, tab3);
+    slider1 = ESPUI.addControl(ControlType::Slider, "", "50", ControlColor::Wetasphalt, panel, &trim);
+    ESPUI.addControl(ControlType::Label, "RIGHT LEG", "RIGHT LEG", ControlColor::Wetasphalt, panel);
+    slider2 = ESPUI.addControl(ControlType::Slider, "", "50", ControlColor::Wetasphalt, panel, &trim);
+    ESPUI.addControl(ControlType::Label, "LEFT FOOT", "LEFT FOOT", ControlColor::Wetasphalt, panel);
+    slider3 = ESPUI.addControl(ControlType::Slider, "", "50", ControlColor::Wetasphalt, panel, &trim);
+    ESPUI.addControl(ControlType::Label, "RIGHT FOOT", "RIGHT FOOT", ControlColor::Wetasphalt, panel);
+    slider4 = ESPUI.addControl(ControlType::Slider, "", "50", ControlColor::Wetasphalt, panel, &trim);
+    ESPUI.addControl(ControlType::Button, "Save", "Save", ControlColor::Wetasphalt, panel, &save);
+    // WIFI
+    uint16_t wifipanel = ESPUI.addControl(ControlType::Label, "WiFi", "", ControlColor::Emerald, tab3);
+    wifissid = ESPUI.addControl(ControlType::Select, "ssid", "", ControlColor::Emerald, wifipanel, &selectExample);
+    int networks = WiFi.scanNetworks();
+    for (int i = 0; i < networks; i++) {
+        wifis[i].reserve(20);
+        wifis[i] = WiFi.SSID(i);
+        const char *ssid = wifis[i].c_str();
+        ESPUI.addControl(ControlType::Option, ssid, ssid, ControlColor::Emerald, wifissid);
+    }
+    wifipass = ESPUI.addControl(ControlType::Text, "Password", "", ControlColor::Emerald, wifipanel, &textCall);
+    ESPUI.addControl(ControlType::Button, "Save", "Save", ControlColor::Wetasphalt, wifipanel, &savewifi);
+
     FastLED.addLeds<WS2812B, ARGB, RGB>(leds, 9);
 
-    for (int whiteLed = 0; whiteLed < 14; whiteLed = whiteLed + 1)
-    {
+    for (int whiteLed = 0; whiteLed < 14; whiteLed = whiteLed + 1) {
         // Turn our current led on to white, then show the leds
         leds[whiteLed] = CRGB::Red;
 
@@ -455,8 +435,7 @@ void Program::setup(LoggerFactory &myfactory)
     if (WiFi.status() == WL_CONNECTED)
         timeClient.begin();
     dfserial.begin(9600);
-    if (!dfplayer.begin(dfserial))
-    { // Use softwareSerial to communicate with mp3.
+    if (!dfplayer.begin(dfserial)) { // Use softwareSerial to communicate with mp3.
         Serial.println(F("Unable to begin:"));
         Serial.println(F("1.Please recheck the connection!"));
         Serial.println(F("2.Please insert the SD card!"));
@@ -465,16 +444,12 @@ void Program::setup(LoggerFactory &myfactory)
     // TODO: handle error
 }
 
-void Program::loop(void)
-{
-    if (WiFi.status() == WL_CONNECTED)
-    {
+void Program::loop(void) {
+    if (WiFi.status() == WL_CONNECTED) {
         timeClient.update();
         unsigned long time = timeClient.getEpochTime();
-        for (auto &alarm : alarms)
-        {
-            if (alarm->should_ring(time))
-            {
+        for (auto &alarm: alarms) {
+            if (alarm->should_ring(time)) {
                 Serial.println("ty vole, ono to funguje");
                 Serial.println(alarm->name);
                 alarm->ring(time);
@@ -483,8 +458,7 @@ void Program::loop(void)
         }
     }
     dnsServer.processNextRequest();
-    if (digitalRead(D1))
-    {
+    if (digitalRead(D1)) {
         dfplayer.stop();
     }
     delay(250);
