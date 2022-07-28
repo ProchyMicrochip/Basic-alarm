@@ -42,12 +42,12 @@ public:
     void ring(unsigned long time);
     void save(int address);
 
-    static Alarm init_from_eeprom(int address, String name)
+    static Alarm* init_from_eeprom(int address, String name)
     {
-        Alarm alarm(address, name);
+        Alarm* alarm = new Alarm(address, name);
 
-        alarm.start_time = EEPROM.read(address + sizeof(uint8_t));
-        alarm.m_state = EEPROM.read(address + sizeof(uint8_t) + sizeof(uint16_t));
+        alarm->start_time = EEPROM.read(address + sizeof(uint8_t));
+        alarm->m_state = EEPROM.read(address + sizeof(uint8_t) + sizeof(uint16_t));
 
         return alarm;
     }

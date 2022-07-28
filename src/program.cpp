@@ -38,9 +38,10 @@ DNSServer dnsServer;
 
 uint16_t days[7];
 uint16_t alarms_select;
+uint16_t text_time;
 
 uint16_t button1;
-uint16_t switchOne;
+uint16_t alarm_active_switcher;
 uint16_t status;
 uint16_t tab1;
 uint16_t tab2;
@@ -72,7 +73,7 @@ void timeChanged(Control *sender, int value)
 
     int hours = (sender->value[0] - '0') * 10 + sender->value[1] - '0';
     int minutes = (sender->value[3] - '0') * 10 + sender->value[4] - '0';
-    selected_alarm.set_time(hours, minutes);
+    selected_alarm->set_time(hours, minutes);
 }
 
 void daysChanged(Control *sender, int value)
@@ -84,7 +85,7 @@ void daysChanged(Control *sender, int value)
     }
     Serial.print("days: ");
     Serial.println(myDays, BIN);
-    selected_alarm.set_state(myDays);
+    selected_alarm->set_state(myDays);
 }
 
 void alarmStateChanged(Control *sender, int value)
@@ -93,12 +94,12 @@ void alarmStateChanged(Control *sender, int value)
     {
     case S_ACTIVE:
         Serial.print("Active:");
-        selected_alarm.set_active(true);
+        selected_alarm->set_active(true);
         break;
 
     case S_INACTIVE:
         Serial.print("Inactive");
-        selected_alarm.set_active(false);
+        selected_alarm->set_active(false);
         break;
     }
 }
@@ -320,12 +321,20 @@ void selectedAlarmChanged(Control *sender, int value)
 {
     for (auto &alarm : alarms)
     {
-        if (alarm.name == sender->value)
+        if (alarm->name == sender->value)
         {
             selected_alarm = alarm;
-            Serial.printf(selected_alarm.name.c_str());
+            Serial.printf(selected_alarm->name.c_str());
         }
     }
+
+    int hours = selected_alarm->start_time / 60;
+    int minutes = selected_alarm->start_time % 60;
+    char text[6];
+    sprintf(text, "%02d:%02d", hours, minutes); 
+    Serial.println(text);
+    ESPUI.updateText(text_time, text);
+    ESPUI.updateSwitcher(alarm_active_switcher, 0);
 }
 
 void Program::setup(LoggerFactory &myfactory)
@@ -339,7 +348,7 @@ void Program::setup(LoggerFactory &myfactory)
     {
         for (int i = 0; i < 3; i++)
         {
-            alarms[i] = Alarm(String(i));
+            alarms[i] = new Alarm(String(i));
         }
     }
     selected_alarm = alarms[0];
@@ -362,19 +371,19 @@ void Program::setup(LoggerFactory &myfactory)
     alarms_select = ESPUI.addControl(ControlType::Select, "Vyberte budík", "", ControlColor::Alizarin, tab1, &selectedAlarmChanged);
     for (size_t i = 0; i < 3; i++)
     {
-        ESPUI.addControl(ControlType::Option, alarms[i].name.c_str(), alarms[i].name.c_str(), ControlColor::Alizarin, alarms_select, &selectedAlarmChanged);
+        ESPUI.addControl(ControlType::Option, alarms[i]->name.c_str(), alarms[i]->name.c_str(), ControlColor::Alizarin, alarms_select, &selectedAlarmChanged);
     }
 
-    uint16_t text_time = ESPUI.addControl(ControlType::Text, "Vyberte čas", "06:00", ControlColor::Wetasphalt, tab1, &timeChanged);
+    text_time = ESPUI.addControl(ControlType::Text, "Vyberte čas", "06:00", ControlColor::Wetasphalt, tab1, &timeChanged);
     ESPUI.setInputType(text_time, "time");
 
     // switchOne = ESPUI.switcher("Aktivní?", &switchExample, ControlColor::Alizarin);
-    switchOne = ESPUI.addControl(ControlType::Switcher, "Aktivní?", "1", ControlColor::Alizarin, tab1, &alarmStateChanged);
+    alarm_active_switcher = ESPUI.addControl(ControlType::Switcher, "Aktivní?", "1", ControlColor::Alizarin, tab1, &alarmStateChanged);
 
     // End Alarm
 
     status = ESPUI.addControl(ControlType::Label, "Status:", "Stop", ControlColor::Turquoise);
-    switchOne = ESPUI.switcher("Switch one", &switchExample, ControlColor::Alizarin);
+    // alarm_active_switcher = ESPUI.switcher("Switch one", &switchExample, ControlColor::Alizarin);
     // TRIMS
     ESPUI.addControl(ControlType::Pad, "Movement", "", ControlColor::Carrot, tab2, &padExample);
     uint16_t panel = ESPUI.addControl(ControlType::Label, "TRIMS", "LEFT LEG", ControlColor::Wetasphalt, tab3);
@@ -464,12 +473,11 @@ void Program::loop(void)
         unsigned long time = timeClient.getEpochTime();
         for (auto &alarm : alarms)
         {
-            Serial.println(alarm.start_time);
-            if (alarm.should_ring(time))
+            if (alarm->should_ring(time))
             {
                 Serial.println("ty vole, ono to funguje");
-                Serial.println(alarm.name);
-                alarm.ring(time);
+                Serial.println(alarm->name);
+                alarm->ring(time);
                 dfplayer.play(1);
             }
         }
@@ -479,5 +487,5 @@ void Program::loop(void)
     {
         dfplayer.stop();
     }
-    delay(20);
+    delay(250);
 }
