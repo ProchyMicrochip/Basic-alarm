@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include "EEPROM.h"
 
+#define FIRST_ALARM_ADDR sizeof(char) * 40
+#define EEPROM_SIZE sizeof(byte) * 1024
 #define ALARM_SIZE 2 * sizeof(uint8_t) + sizeof(uint16_t)
 #define ALARM_HEADER 0xBB
 
@@ -16,8 +18,7 @@ class Alarm
 {
 private:
     /* data */
-    int m_address = 0;
-    bool m_is_hidden = false;
+    int m_address = FIRST_ALARM_ADDR;
     // start time in minutes
     // uint16_t start_time = 0;
     // indexes 0..6 correspond to days and index 7 stores, whether the alarm is active
@@ -29,6 +30,7 @@ private:
 public:
     String name;
     uint16_t start_time = 0;
+    Alarm();
     Alarm(String name);
     Alarm(int address, String name);
     int getAddress();
@@ -38,6 +40,7 @@ public:
     bool should_ring(unsigned long time);
     // We could inject a DFRobotDFPlayerMini into this class and create a function to start and stop alarm
     void ring(unsigned long time);
+    void save(int address);
 
     static Alarm init_from_eeprom(int address, String name)
     {

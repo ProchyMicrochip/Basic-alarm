@@ -17,7 +17,6 @@
 #include <SoftwareSerial.h>
 #include <DFRobotDFPlayerMini.h>
 
-#define FIRST_ALARM_ADDR sizeof(char) * 40
 #define EEPROM_SIZE sizeof(byte) * 1024
 
 CRGB leds[9];
@@ -57,12 +56,12 @@ String wifis[20];
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
 
-Alarm selected_alarm("1");
+Alarm *selected_alarm;
 
 SoftwareSerial dfserial(D6, D7);
 DFRobotDFPlayerMini dfplayer;
 
-std::vector<Alarm> alarms;
+Alarm *alarms[3];
 std::vector<std::tuple<uint16_t, int>> option_ids;
 int max_new_alarms_count = 5;
 
@@ -296,19 +295,25 @@ void savewifi(Control *sender, int value)
     }
 }
 
-void restoreDataFromEEPROM(int address)
+bool restoreDataFromEEPROM(int address)
 {
+    int counter = 0;
     while (address < EEPROM_SIZE - ALARM_SIZE)
     {
         // tudu : load settings
         if (Alarm::is_alarm(address))
         {
-            alarms.push_back(Alarm::init_from_eeprom(address, String(alarms.size() + 1)));
+            alarms[counter] = Alarm::init_from_eeprom(address, String(counter + 1));
             address += ALARM_SIZE;
+            counter++;
         }
         else
             address++;
     }
+
+    if (counter > 0)
+        return true;
+    return false;
 }
 
 void selectedAlarmChanged(Control *sender, int value)
@@ -323,64 +328,21 @@ void selectedAlarmChanged(Control *sender, int value)
     }
 }
 
-void createAlarm(Control *sender, int value)
-{
-    max_new_alarms_count--;
-    if (value == B_DOWN && max_new_alarms_count == 0)
-    {
-        return;
-    }
-
-    // grap data from controls
-    int address = FIRST_ALARM_ADDR;
-    while (address < EEPROM_SIZE - ALARM_SIZE)
-    {
-        if (Alarm::is_alarm(address))
-            address += ALARM_SIZE;
-        else
-            break;
-    }
-
-    Alarm a(address, std::get<0>(option_ids[option_ids.size() - max_new_alarms_count - 1]));
-    alarms.push_back(a);
-    ESPUI.updateVisibility(std::get<0>(option_ids[alarms.size() - 1]), true);
-    std::get<1>(option_ids[alarms.size() - 1]) = address;
-}
-
-void removeAlarm(Control *sender, int value)
-{
-    int i = 0;
-    for (; i < alarms.size(); i++)
-        if (selected_alarm.getAddress() == alarms[i].getAddress())
-            break;
-
-    if (i == 0)
-        return;
-
-    for (int i = 0; i < ALARM_SIZE; i++)
-        EEPROM.write(selected_alarm.getAddress() + sizeof(byte) * i, 0);
-    EEPROM.commit();
-
-    ESPUI.updateVisibility(i - 1, true);
-    // rename all other alarms
-}
-
 void Program::setup(LoggerFactory &myfactory)
 {
     pinMode(D1, INPUT);
     _factory = myfactory;
 
-    restoreDataFromEEPROM(FIRST_ALARM_ADDR);
+    bool restored = restoreDataFromEEPROM(FIRST_ALARM_ADDR);
 
-    if (alarms.size() == 0)
+    if (restored == false)
     {
-        selected_alarm = Alarm(FIRST_ALARM_ADDR, "1");
-        alarms.push_back(selected_alarm);
+        for (int i = 0; i < 3; i++)
+        {
+            alarms[i] = Alarm(String(i));
+        }
     }
-    else
-    {
-        selected_alarm = alarms[0];
-    }
+    selected_alarm = alarms[0];
     dnsServer.start(DNS_PORT, "*", WiFi.status() == WL_DISCONNECTED ? WiFi.softAPIP() : WiFi.localIP());
     Serial.println("\n\nWiFi parameters:");
     Serial.print("Mode: ");
@@ -397,22 +359,10 @@ void Program::setup(LoggerFactory &myfactory)
 
     // Alarm
 
-    ESPUI.addControl(ControlType::Button, "Nový", "Vytvořit", ControlColor::Wetasphalt, tab1, &createAlarm);
-
-    // don't add alarms_select id to option_ids
     alarms_select = ESPUI.addControl(ControlType::Select, "Vyberte budík", "", ControlColor::Alizarin, tab1, &selectedAlarmChanged);
-    for (size_t i = 0; i < alarms.size(); i++)
+    for (size_t i = 0; i < 3; i++)
     {
-        uint16_t id = ESPUI.addControl(ControlType::Option, alarms[i].name.c_str(), alarms[i].name.c_str(), ControlColor::Alizarin, alarms_select, &selectedAlarmChanged);
-        option_ids.push_back(std::make_tuple(id, alarms[i].getAddress()));
-        ESPUI.updateVisibility(id, false);
-    }
-
-    for (size_t i = 0; i < 5; i++)
-    {
-        uint16_t id = ESPUI.addControl(ControlType::Option, String(alarms.size() + 1).c_str(), String(alarms.size() + 1).c_str(), ControlColor::Alizarin, alarms_select, &selectedAlarmChanged);
-        option_ids.push_back(std::make_tuple(id, -1));
-        ESPUI.updateVisibility(id, false);
+        ESPUI.addControl(ControlType::Option, alarms[i].name.c_str(), alarms[i].name.c_str(), ControlColor::Alizarin, alarms_select, &selectedAlarmChanged);
     }
 
     uint16_t text_time = ESPUI.addControl(ControlType::Text, "Vyberte čas", "06:00", ControlColor::Wetasphalt, tab1, &timeChanged);
@@ -420,8 +370,6 @@ void Program::setup(LoggerFactory &myfactory)
 
     // switchOne = ESPUI.switcher("Aktivní?", &switchExample, ControlColor::Alizarin);
     switchOne = ESPUI.addControl(ControlType::Switcher, "Aktivní?", "1", ControlColor::Alizarin, tab1, &alarmStateChanged);
-
-    ESPUI.addControl(ControlType::Button, "Odstranit vybraný", "Odstranit", ControlColor::Wetasphalt, tab1, &removeAlarm);
 
     // End Alarm
 
@@ -516,6 +464,7 @@ void Program::loop(void)
         unsigned long time = timeClient.getEpochTime();
         for (auto &alarm : alarms)
         {
+            Serial.println(alarm.start_time);
             if (alarm.should_ring(time))
             {
                 Serial.println("ty vole, ono to funguje");

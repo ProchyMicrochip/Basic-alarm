@@ -2,20 +2,29 @@
 #include <Arduino.h>
 #include "EEPROM.h"
 
+Alarm::Alarm() {}
+
 Alarm::Alarm(String name)
 {
     Alarm::name = name;
-    m_is_hidden = true;
-    m_address = -1;
+    while (m_address < EEPROM_SIZE - ALARM_SIZE)
+    {
+        // tudu : load settings
+        if (Alarm::is_alarm(m_address))
+            m_address += ALARM_SIZE;
+        else
+            break;
+    }
+
+    start_time = 360;
+
+    save(m_address);
 }
 
 Alarm::Alarm(int address, String name)
 {
-    EEPROM.write(address, ALARM_HEADER);
-    EEPROM.write(address + sizeof(uint8_t), start_time);
-    EEPROM.write(address + sizeof(uint8_t) + sizeof(uint16_t), m_state);
-
-    EEPROM.commit();
+    m_address = address;
+    save(m_address);
     Alarm::name = name;
 }
 int Alarm::getAddress()
@@ -50,4 +59,13 @@ void Alarm::ring(unsigned long time)
     int seconds = time % 60;
     // time - seconds_in_current_minute ?? - 1 or eq to should_ring
     m_last_invoke = time - seconds;
+}
+
+void Alarm::save(int address)
+{
+    EEPROM.write(address, ALARM_HEADER);
+    EEPROM.write(address + sizeof(uint8_t), start_time);
+    EEPROM.write(address + sizeof(uint8_t) + sizeof(uint16_t), m_state);
+
+    EEPROM.commit();
 }
